@@ -16,10 +16,15 @@ If config.interactive = True plots raw data and power spectral density.
 
 """  # noqa: E501
 
-from typing import Optional, Union, Literal
+import sys
 import itertools
 import logging
 import numpy as np
+from typing import Optional, Union
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 import mne
 from mne.utils import BunchConst
@@ -219,6 +224,10 @@ def get_config(
         find_noisy_channels_meg=config.find_noisy_channels_meg,
         reference_run=config.get_mf_reference_run(),
         drop_channels=config.drop_channels,
+        find_breaks=config.find_breaks,
+        min_break_duration=config.min_break_duration,
+        t_break_annot_start_after_previous_event=config.t_break_annot_start_after_previous_event,  # noqa:E501
+        t_break_annot_stop_before_next_event=config.t_break_annot_stop_before_next_event,  # noqa:E501
     )
     return cfg
 

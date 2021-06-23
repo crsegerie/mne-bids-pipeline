@@ -28,7 +28,7 @@ import os
 study_name = 'ERP-CORE'
 bids_root = '~/mne_data/ERP_CORE'
 
-task =  os.environ.get('MNE_BIDS_STUDY_TASK')
+task = os.environ.get('MNE_BIDS_STUDY_TASK')
 sessions = [task]
 
 subjects = ['015', '016', '017', '018', '019']
@@ -50,8 +50,13 @@ h_freq = None
 
 decode = True
 
+find_breaks = True
+min_break_duration = 10
+t_break_annot_start_after_previous_event = 3.0
+t_break_annot_stop_before_next_event = 1.5
+
 ica_reject = dict(eeg=350e-6, eog=500e-6)
-reject = dict(eeg=150e-6)
+reject = 'autoreject_global'
 
 spatial_filter = 'ica'
 ica_max_iterations = 1000
@@ -90,9 +95,9 @@ if task == 'N400':
 
     conditions = {
         'related': '`first_stimulus/target` == "related" and '
-                'first_response == "correct"',
+                   'first_response == "correct"',
         'unrelated': '`first_stimulus/target` == "unrelated" and '
-                    'first_response == "correct"'
+                     'first_response == "correct"'
     }
 
     contrasts = [('unrelated', 'related')]
@@ -191,13 +196,13 @@ elif task == 'N170':
         orig_name = f'stimulus/{i}'
 
         if 1 <= i <= 40:
-            new_name = f'stimulus/face/normal'
+            new_name = 'stimulus/face/normal'
         elif 41 <= i <= 80:
-            new_name = f'stimulus/car/normal'
+            new_name = 'stimulus/car/normal'
         elif 101 <= i <= 140:
-            new_name = f'stimulus/face/scrambled'
+            new_name = 'stimulus/face/scrambled'
         elif 141 <= i <= 180:
-            new_name = f'stimulus/car/scrambled'
+            new_name = 'stimulus/car/scrambled'
         else:
             continue
 

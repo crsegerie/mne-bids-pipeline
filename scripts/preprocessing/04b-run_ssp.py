@@ -12,6 +12,7 @@ from typing import Optional
 
 import mne
 from mne.utils import BunchConst
+from mne.preprocessing import create_eog_epochs, create_ecg_epochs
 from mne.preprocessing import compute_proj_ecg, compute_proj_eog
 from mne.parallel import parallel_func
 from mne_bids import BIDSPath
@@ -52,13 +53,18 @@ def run_ssp(cfg, subject, session=None):
         raw_fname_in.update(split='01')
 
     raw = mne.io.read_raw_fif(raw_fname_in)
-    # XXX : n_xxx should be options in config
     msg = 'Computing SSPs for ECG'
     logger.debug(gen_log_message(message=msg, step=4, subject=subject,
                                  session=session))
-    ecg_projs, _ = compute_proj_ecg(raw, n_grad=1, n_mag=1, n_eeg=0,
-                                    average=True)
 
+    reject_ecg_ = config.get_ssp_reject(
+        ssp_type='ecg',
+        epochs=(create_ecg_epochs(raw)
+                if cfg.ssp_reject_ecg == 'autoreject_global' else None))
+    ecg_projs, _ = compute_proj_ecg(raw,
+                                    average=cfg.ecg_proj_from_average,
+                                    reject=reject_ecg_,
+                                    **cfg.n_proj_ecg)
     if not ecg_projs:
         msg = 'No ECG events could be found. No ECG projectors computed.'
         logger.info(gen_log_message(message=msg, step=4, subject=subject,
@@ -69,14 +75,18 @@ def run_ssp(cfg, subject, session=None):
                                  session=session))
     if cfg.eog_channels:
         ch_names = cfg.eog_channels
-        assert all([ch_name in raw.ch_names
-                    for ch_name in ch_names])
+        assert all([ch_name in raw.ch_names for ch_name in ch_names])
     else:
         ch_names = None
 
+    reject_eog_ = config.get_ssp_reject(
+        ssp_type='eog',
+        epochs=(create_eog_epochs(raw)
+                if cfg.ssp_reject_eog == 'autoreject_global' else None))
     eog_projs, _ = compute_proj_eog(raw, ch_name=ch_names,
-                                    n_grad=1, n_mag=1, n_eeg=1,
-                                    average=True)
+                                    average=cfg.eog_proj_from_average,
+                                    reject=reject_eog_,
+                                    **cfg.n_proj_eog)
 
     if not eog_projs:
         msg = 'No EOG events could be found. No EOG projectors computed.'
@@ -99,6 +109,12 @@ def get_config(
         space=config.space,
         eog_channels=config.eog_channels,
         deriv_root=config.get_deriv_root(),
+        ssp_reject_ecg=config.ssp_reject_ecg,
+        ecg_proj_from_average=config.ecg_proj_from_average,
+        ssp_reject_eog=config.ssp_reject_eog,
+        eog_proj_from_average=config.eog_proj_from_average,
+        n_proj_eog=config.n_proj_eog,
+        n_proj_ecg=config.n_proj_ecg,
     )
     return cfg
 

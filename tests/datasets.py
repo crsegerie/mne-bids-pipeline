@@ -57,6 +57,14 @@ DATASET_OPTIONS: Dict[str, DATASET_OPTIONS_T] = {
                     'sub-0001/meg/sub-0001_task-AEF_run-01_channels.tsv'],
         'exclude': []
     },
+    'ds000247': {
+        'git': '',
+        'openneuro': 'ds000247',
+        'osf': '',
+        'web': '',
+        'include': ['sub-0002/ses-0001/meg'],
+        'exclude': []
+    },
     'ds000248': {
         'git': '',
         'openneuro': 'ds000248',
@@ -108,6 +116,14 @@ DATASET_OPTIONS: Dict[str, DATASET_OPTIONS_T] = {
             'derivatives/freesurfer/subjects/sub-01/mri/aparc.DKTatlas+aseg.mgz',  # noqa: E501
             'derivatives/freesurfer/subjects/sub-01/mri/aparc.a2009s+aseg.mgz'
         ],
+    },
+    'ds000248_no_mri': {
+        'git': '',
+        'openneuro': 'ds000248',
+        'osf': '',
+        'web': '',
+        'include': ['sub-01'],
+        'exclude': ['sub-01/anat'],
     },
     'ds000117': {
         'git': '',

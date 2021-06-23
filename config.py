@@ -382,6 +382,106 @@ itself, nor to the source analysis stage.
 """
 
 ###############################################################################
+# BREAK DETECTION
+# ---------------
+
+find_breaks: bool = False
+"""
+During an experimental run, the recording might be interrupted by breaks of
+various durations, e.g. to allow the participant to stretch, blink, and swallow
+freely. During these periods, large-scale artifacts are often picked up by the
+recording system. These artifacts can impair certain stages of processing, e.g.
+the peak-detection algorithms we use to find EOG and ECG activity. In some
+cases, even the bad channel detection algorithms might not function optimally.
+It is therefore advisable to mark such break periods for exclusion at early
+processing stages.
+
+If `True`, try to mark breaks by finding segments of the data where no
+exprimental events have occurred. This will then add annotations with the
+description `BAD_break` to the continuous data, causing these segments to be
+ignored in all following processing steps.
+
+???+ example "Example"
+    Automatically find break periods, and annotate them as `BAD_break`.
+    ```python
+    find_breaks = True
+    ```
+
+    Disable break detection.
+    ```python
+    find_breaks = False
+    ```
+"""
+
+min_break_duration: float = 15.
+"""
+The minimal duration (in seconds) of a data segment without any experimental
+events for it to be considered a "break". Note that the minimal duration of the
+generated `BAD_break` annotation will typically be smaller than this, as by
+default, the annotation will not extend across the entire break.
+See [`t_break_annot_start_after_previous_event`][config.t_break_annot_start_after_previous_event]
+and [`t_break_annot_stop_before_next_event`][config.t_break_annot_stop_before_next_event]
+to control this behavior.
+
+???+ example "Example"
+    Periods between two consecutive experimental events must span at least
+    `15` seconds for this period to be considered a "break".
+    ```python
+    min_break_duration = 15.
+    ```
+"""
+
+t_break_annot_start_after_previous_event: float = 5.
+"""
+Once a break of at least [`min_break_duration`][configmin_break_duration]
+seconds has been discovered, we generate a `BAD_break` annotation that does not
+necessarily span the entire break period. Instead, you will typically want to
+start it some time after the last event before the break period, as to not
+unnecessarily discard brain activity immediately following that event.
+
+This parameter controls how much time (in seconds) should pass after the last
+pre-break event before we start annotating the following segment of the break
+period as bad.
+
+???+ example "Example"
+    Once a break period has been detected, add a `BAD_break` annotation to it,
+    starting `5` seconds after the latest pre-break event.
+    ```python
+    t_break_annot_start_after_previous_event = 5.
+    ```
+
+    Start the `BAD_break` annotation immediately after the last pre-break
+    event.
+    ```python
+    t_break_annot_start_after_previous_event = 0.
+    ```
+"""
+
+t_break_annot_stop_before_next_event: float = 5.
+"""
+Similarly to how
+[`t_break_annot_start_after_previous_event`][config.t_break_annot_start_after_previous_event]
+controls the "gap" between beginning of the break period and `BAD_break`
+annotation onset,  this parameter controls how far the annotation should extend
+toward the first experimental event immediately following the break period
+(in seconds). This can help not to waste a post-break trial by marking its
+pre-stimulus period as bad.
+
+???+ example "Example"
+    Once a break period has been detected, add a `BAD_break` annotation to it,
+    starting `5` seconds after the latest pre-break event.
+    ```python
+    t_break_annot_start_after_previous_event = 5.
+    ```
+
+    Start the `BAD_break` annotation immediately after the last pre-break
+    event.
+    ```python
+    t_break_annot_start_after_previous_event = 0.
+    ```
+"""
+
+###############################################################################
 # MAXWELL FILTER PARAMETERS
 # -------------------------
 # done in 01-import_and_maxfilter.py
@@ -699,8 +799,9 @@ for more information.
 Passing a dictionary allows to assign a name to map a complex condition name
 (value) to a more legible one (value).
 
-This is a **required** parameter in the configuration file. If left as `None`,
-it will raise an error.
+This is a **required** parameter in the configuration file, unless you are
+processing resting-state data. If left as `None` and [`task`][config.task]
+is not `'rest'`, we will raise an error.
 
 ???+ example "Example"
     Specifying conditions as lists of strings:
@@ -710,6 +811,7 @@ it will raise an error.
     conditions = ['auditory']  # All "auditory" conditions (left AND right)
     conditions = ['auditory', 'visual']
     conditions = ['left', 'right']
+    conditions = None  # for a resting-state analysis
     ```
     Pass a dictionary to define a mapping:
     ```python
@@ -735,6 +837,17 @@ The end of an epoch, relative to the respective event, in seconds.
     ```python
     epochs_tmax = 0.5  # 500 ms after event onset
     ```
+"""
+
+rest_epochs_duration: Optional[float] = None
+"""
+Duration of epochs in seconds.
+"""
+
+rest_epochs_overlap: Optional[float] = None
+"""
+Overlap between epochs in seconds. This is used if the task is ``'rest'``
+and when the annotations do not contain any stimulation or behavior events.
 """
 
 baseline: Optional[Tuple[Optional[float], Optional[float]]] = (None, 0)
@@ -803,6 +916,83 @@ order to remove the artifacts. The ICA procedure can be configured in various
 ways using the configuration options you can find below.
 """
 
+# Rejection based on SSP
+# ~~~~~~~~~~~~~~~~~~~~~~
+
+
+n_proj_eog: Dict[str, float] = dict(n_mag=1, n_grad=1, n_eeg=1)
+"""
+Number of SSP vectors to create for EOG artifacts for each channel type.
+"""
+
+n_proj_ecg: Dict[str, float] = dict(n_mag=1, n_grad=1, n_eeg=1)
+"""
+Number of SSP vectors to create for ECG artifacts for each channel type.
+"""
+
+ecg_proj_from_average: bool = True
+"""
+Whether to calculate the ECG projection vectors based on the the averaged or
+on individual ECG epochs.
+"""
+
+eog_proj_from_average: bool = True
+"""
+Whether to calculate the EOG projection vectors based on the the averaged or
+on individual EOG epochs.
+"""
+
+ssp_reject_ecg: Optional[
+    Union[
+        Dict[str, float],
+        Literal['autoreject_global']
+    ]
+] = None
+"""
+Peak-to-peak amplitude limits of the ECG epochs to exclude from SSP fitting.
+This allows you to remove strong transient artifacts, which could negatively
+affect SSP performance.
+
+The pipeline will automatically try to detect ECG artifacts in
+your data, and remove them via SSP. For this to work properly, it is
+recommended to **not** specify rejection thresholds for ECG channels here –
+otherwise, SSP won't be able to "see" these artifacts.
+???+ example "Example"
+    ```python
+    ssp_reject_ecg = {'grad': 10e-10, 'mag': 20e-12, 'eeg': 400e-6}
+    ssp_reject_ecg = {'grad': 15e-10}
+    ssp_reject_ecg = None
+    ```
+"""
+
+ssp_reject_eog: Optional[
+    Union[
+        Dict[str, float],
+        Literal['autoreject_global']
+    ]
+] = None
+"""
+Peak-to-peak amplitude limits of the EOG epochs to exclude from SSP fitting.
+This allows you to remove strong transient artifacts, which could negatively
+affect SSP performance.
+
+The pipeline will automatically try to detect EOG artifacts in
+your data, and remove them via SSP. For this to work properly, it is
+recommended to **not** specify rejection thresholds for EOG channels here –
+otherwise, SSP won't be able to "see" these artifacts.
+???+ example "Example"
+    ```python
+    ssp_reject_eog = {'grad': 10e-10, 'mag': 20e-12, 'eeg': 400e-6}
+    ssp_reject_eog = {'grad': 15e-10}
+    ssp_reject_eog = None
+    ```
+"""
+
+
+# Rejection based on ICA
+# ~~~~~~~~~~~~~~~~~~~~~~
+
+
 ica_reject: Optional[Dict[str, float]] = None
 """
 Peak-to-peak amplitude limits to exclude epochs from ICA fitting.
@@ -817,11 +1007,14 @@ your data, and remove them. For this to work properly, it is recommended
 to **not** specify rejection thresholds for EOG and ECG channels here –
 otherwise, ICA won't be able to "see" these artifacts.
 
+If `None` (default), do not apply artifact rejection. If a dictionary,
+manually specify peak-to-peak rejection thresholds (see examples).
+
 ???+ example "Example"
     ```python
     ica_reject = {'grad': 10e-10, 'mag': 20e-12, 'eeg': 400e-6}
     ica_reject = {'grad': 15e-10}
-    ica_reject = None
+    ica_reject = None  # no rejection
     ```
 """
 
@@ -912,23 +1105,50 @@ false-alarm rate increases dramatically.
 # Rejection based on peak-to-peak amplitude
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-reject: Optional[Dict[str, float]] = None
+reject: Optional[
+    Union[Dict[str, float],
+          Literal['autoreject_global']]
+] = None
 """
 Peak-to-peak amplitude limits to mark epochs as bad. This allows you to remove
 epochs with strong transient artifacts.
 
+If `None` (default), do not apply artifact rejection. If a dictionary,
+manually specify rejection thresholds (see examples).  If
+`'autoreject_global'`, use [`autoreject`](https://autoreject.github.io) to find
+suitable "global" rejection thresholds for each channel type, i.e. `autoreject`
+will generate a dictionary with (hopefully!) optimal thresholds for each
+channel type.
+
+The thresholds provided here must be at least as stringent as those in
+[`ica_reject`][config.ica_reject] if using ICA. In case of
+`'autoreject_global'`, thresholds for any channel that do not meet this
+requirement will be automatically replaced with those used in `ica_reject`.
+
 Note: Note
       The rejection is performed **after** SSP or ICA, if any of those methods
-      is used. To reject epochs before fitting ICA, see the
+      is used. To reject epochs **before** fitting ICA, see the
       [`ica_reject`][config.ica_reject] setting.
 
-Pass ``None`` to avoid automated epoch rejection based on amplitude.
+If `None` (default), do not apply automated rejection. If a dictionary,
+manually specify rejection thresholds (see examples).  If `'auto'`, use
+[`autoreject`](https://autoreject.github.io) to find suitable "global"
+rejection thresholds for each channel type, i.e. `autoreject` will generate
+a dictionary with (hopefully!) optimal thresholds for each channel type. Note
+that using `autoreject` can be a time-consuming process.
+
+Note: Note
+      `autoreject` basically offers two modes of operation: "global" and
+      "local". In "global" mode, it will try to estimate one rejection
+      threshold **per channel type.** In "local" mode, it will generate
+      thresholds **for each individual channel.** Currently, the BIDS Pipeline
+      only supports the "global" mode.
 
 ???+ example "Example"
     ```python
     reject = {'grad': 4000e-13, 'mag': 4e-12, 'eog': 150e-6}
     reject = {'eeg': 100e-6, 'eog': 250e-6}
-    reject = None
+    reject = None  # no rejection based on PTP amplitude
     ```
 """
 
@@ -1039,6 +1259,13 @@ Maximum frequency for the time frequency analysis, in Hz.
 run_source_estimation: bool = True
 """
 Whether to run source estimation processing steps if not explicitly requested.
+"""
+
+use_template_mri: bool = False
+"""
+Whether to use FreeSurfer's `fsaverage` subject as MRI template. This may
+come in handy if you don't haver individual MR scans of your participants, as
+is often the case in EEG studies.
 """
 
 bem_mri_images: Literal['FLASH', 'T1', 'auto'] = 'auto'
@@ -1261,10 +1488,11 @@ mne_log_level: Literal['info', 'error'] = 'error'
 Set the MNE-Python logging verbosity.
 """
 
-on_error: Literal['continue', 'abort'] = 'abort'
+on_error: Literal['continue', 'abort', 'debug'] = 'abort'
 """
-Whether to abort processing as soon as an error occurs, or whether to
-continue with all other processing steps for as long as possible.
+Whether to abort processing as soon as an error occurs, continue with all other
+processing steps for as long as possible, or drop you into a debugger in case
+of an error.
 """
 
 ###############################################################################
@@ -1400,10 +1628,6 @@ if 'eeg' in ch_types:
                "instead by setting spatial_filter='ica'.")
         raise ValueError(msg)
 
-if conditions is None and 'MKDOCS' not in os.environ:
-    msg = ('Please indicate the name of your conditions in your '
-           'configuration. Currently the `conditions` parameter is empty.')
-    raise ValueError(msg)
 
 if on_error not in ('continue', 'abort', 'debug'):
     msg = (f"on_error must be one of 'continue', 'debug' or 'abort', "
@@ -1479,9 +1703,25 @@ check_baseline(baseline=baseline, epochs_tmin=epochs_tmin,
                epochs_tmax=epochs_tmax)
 
 
+# check PTP rejection thresholds
+if (spatial_filter == 'ica' and
+        ica_reject is not None and
+        reject is not None and
+        reject != 'autoreject_global'):
+    for ch_type in reject:
+        if (ch_type in ica_reject and
+                reject[ch_type] > ica_reject[ch_type]):
+            raise ValueError(
+                f'Rejection threshold in '
+                f'reject["{ch_type}"] ({reject[ch_type]}) must be at least as '
+                f'stringent as that in '
+                f'ica_reject["{ch_type}"] ({ica_reject[ch_type]})'
+            )
+
 ###############################################################################
 # Helper functions
 # ----------------
+
 
 def get_bids_root() -> pathlib.Path:
     # BIDS_ROOT environment variable takes precedence over any configuration file
@@ -1723,14 +1963,30 @@ def get_datatype() -> Literal['meg', 'eeg']:
 
 
 def _get_reject(
-    reject: Optional[Dict[str, float]],
-    ch_types: Iterable[Literal['meg', 'mag', 'grad', 'eeg']]
+    *,
+    subject: Optional[str] = None,
+    session: Optional[str] = None,
+    reject: Optional[Union[Dict[str, float], Literal['autoreject_global']]],
+    ch_types: Iterable[Literal['meg', 'mag', 'grad', 'eeg']],
+    epochs: Optional[mne.BaseEpochs] = None
 ) -> Dict[str, float]:
     if reject is None:
         return dict()
 
-    reject = reject.copy()
+    if reject == 'autoreject_global':
+        # Automated threshold calculation requested
+        import autoreject
 
+        msg = 'Generating rejection thresholds using autoreject …'
+        logger.info(gen_log_message(message=msg, subject=subject,
+                                    session=session))
+        reject = autoreject.get_rejection_threshold(
+            epochs=epochs, ch_types=ch_types, decim=decim, verbose=False
+        )
+        return reject
+
+    # Only keep thresholds for channel types of interest
+    reject = reject.copy()
     if ch_types == ['eeg']:
         ch_types_to_remove = ('mag', 'grad')
     else:
@@ -1745,8 +2001,25 @@ def _get_reject(
     return reject
 
 
-def get_reject() -> Dict[str, float]:
-    return _get_reject(reject=reject, ch_types=ch_types)
+def get_reject(
+    *,
+    epochs: Optional[mne.BaseEpochs] = None
+) -> Dict[str, float]:
+    return _get_reject(reject=reject, ch_types=ch_types, epochs=epochs)
+
+
+def get_ssp_reject(
+    *,
+    ssp_type: Literal['ecg', 'eog'],
+    epochs: mne.BaseEpochs
+) -> Dict[str, float]:
+    if ssp_type == 'ecg':
+        reject = ssp_reject_ecg
+    elif ssp_type == 'eog':
+        reject = ssp_reject_eog
+    else:
+        raise ValueError("Only 'eog' and 'ecg' are supported.")
+    return _get_reject(reject=reject, ch_types=ch_types, epochs=epochs)
 
 
 def get_ica_reject() -> Dict[str, float]:
@@ -1893,6 +2166,9 @@ def get_channels_to_analyze(info) -> List[str]:
 def get_fs_subject(subject) -> str:
     subjects_dir = get_fs_subjects_dir()
 
+    if use_template_mri:
+        return 'fsaverage'
+
     if (pathlib.Path(subjects_dir) / subject).exists():
         return subject
     else:
@@ -1972,9 +2248,22 @@ def make_epochs(
     rejection thresholds will be applied. No baseline-correction will be
     performed.
     """
-    events, event_id_from_annotatins = mne.events_from_annotations(raw)
+    if get_task().lower() == 'rest':
+        stop = raw.times[-1] - rest_epochs_duration
+        assert epochs_tmin == 0., "epochs_tmin must be 0 for rest"
+        assert rest_epochs_overlap is not None, \
+            "epochs_overlap cannot be None for rest"
+        events = mne.make_fixed_length_events(
+            raw, id=3000, start=0,
+            duration=rest_epochs_duration,
+            overlap=rest_epochs_overlap,
+            stop=stop)
+        event_id = dict(rest=3000)
+    else:  # Events for task runs
+        events, event_id_from_annotations = mne.events_from_annotations(raw)
+
     if event_id is None:
-        event_id = event_id_from_annotatins
+        event_id = event_id_from_annotations
 
     # Construct metadata from the epochs
     if metadata_tmin is None:
@@ -2298,9 +2587,9 @@ def import_experimental_data(
         The local configuration.
     subject : str
         The subject to import.
-    session : str
+    session : str | None
         The session to import.
-    run : str
+    run : str | None
         The run to import.
     save : bool
         Whether to save the data to disk or not.
@@ -2328,9 +2617,12 @@ def import_experimental_data(
 
     raw = _load_data(cfg=cfg, bids_path=bids_path_in)
     _set_eeg_montage(cfg=cfg, raw=raw, subject=subject, session=session)
-    _create_bipolar_channels(cfg=cfg, raw=raw, subject=subject, session=session)
+    _create_bipolar_channels(cfg=cfg, raw=raw, subject=subject,
+                             session=session)
     _drop_channels_func(cfg=cfg, raw=raw, subject=subject, session=session)
     _rename_events_func(cfg=cfg, raw=raw, subject=subject, session=session)
+    _find_breaks_func(cfg=cfg, raw=raw, subject=subject, session=session,
+                      run=run)
     _fix_stim_artifact_func(cfg=cfg, raw=raw)
     _find_bad_channels(cfg=cfg, raw=raw, subject=subject, session=session,
                        task=get_task(), run=run)
@@ -2420,7 +2712,7 @@ def get_reference_run_info(
 
     msg = f'Loading info for run: {run}.'
     logger.info(gen_log_message(message=msg, step=1, subject=subject,
-                                session=session))
+                                session=session, run=run))
 
     bids_path = BIDSPath(
         subject=subject,
@@ -2438,6 +2730,60 @@ def get_reference_run_info(
 
     info = mne.io.read_info(bids_path)
     return info
+
+
+def _find_breaks_func(
+    *,
+    cfg,
+    raw: mne.io.BaseRaw,
+    subject: str,
+    session: Optional[str],
+    run: Optional[str],
+) -> None:
+    if not cfg.find_breaks:
+        msg = 'Finding breaks has been disabled by the user.'
+        logger.info(gen_log_message(message=msg, step=1, subject=subject,
+                                    session=session, run=run))
+        return
+
+    msg = (f'Finding breaks with a mininum duration of '
+           f'{cfg.min_break_duration} seconds.')
+    logger.info(gen_log_message(message=msg, step=1, subject=subject,
+                                session=session, run=run))
+
+    break_annots = mne.preprocessing.annotate_break(
+        raw=raw,
+        min_break_duration=cfg.min_break_duration,
+        t_start_after_previous=cfg.t_break_annot_start_after_previous_event,
+        t_stop_before_next=cfg.t_break_annot_stop_before_next_event
+    )
+
+    msg = (f'Found and annotated '
+           f'{len(break_annots) if break_annots else "no"} break periods.')
+    logger.info(gen_log_message(message=msg, step=1, subject=subject,
+                                session=session, run=run))
+
+    raw.set_annotations(raw.annotations + break_annots)  # add to existing
+
+
+def get_eeg_reference() -> Union[Literal['average'], Iterable[str]]:
+    if eeg_reference == 'average':
+        return eeg_reference
+    elif isinstance(eeg_reference, str):
+        return [eeg_reference]
+    else:
+        return eeg_reference
+
+
+# Another check that depends on some of the functions defined above
+if (get_task() is not None and
+        get_task().lower() != 'rest' and
+        conditions is None and
+        'MKDOCS' not in os.environ):
+    msg = ('Please indicate the name of your conditions in your '
+           'configuration. Currently the `conditions` parameter is empty. '
+           'This is only allowed for resting-state analysis.')
+    raise ValueError(msg)
 
 
 # # Leave this here for reference for now
