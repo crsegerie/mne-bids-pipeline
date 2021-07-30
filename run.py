@@ -58,7 +58,8 @@ SOURCE_SCRIPTS = (
     '02-make_forward.py',
     '03-make_cov.py',
     '04-make_inverse.py',
-    '05-group_average.py'
+    '05-group_average.py',
+    '06-source_contrast.py'
 )
 
 REPORT_SCRIPTS = ('01-make_reports.py',)
