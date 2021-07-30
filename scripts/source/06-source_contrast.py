@@ -31,17 +31,18 @@ logger = logging.getLogger('mne-bids-pipeline')
 
 
 def one_subject(subject, session, cfg):
-    bids_path = BIDSPath(subject=subject,
-                         session=session,
-                         task=cfg.task,
-                         acquisition=cfg.acq,
-                         run=None,
-                         recording=cfg.rec,
-                         space=cfg.space,
-                         extension='.fif',
-                         datatype=cfg.datatype,
-                         root=cfg.deriv_root,
-                         check=False)
+    bids_path = BIDSPath(
+        subject=subject,
+        session=session,
+        task=cfg.task,
+        acquisition=cfg.acq,
+        run=None,
+        recording=cfg.rec,
+        space=cfg.space,
+        extension='.fif',
+        datatype=cfg.datatype,
+        root=cfg.deriv_root,
+        check=False)
 
     fname_inv = bids_path.copy().update(suffix='inv')
     inverse_operator = read_inverse_operator(fname_inv)
@@ -65,22 +66,28 @@ def one_subject(subject, session, cfg):
     print("epochs loaded")
     epochs.decimate(5)
 
-    # apres le faire pour les deux contrastes
-    base_cov = mne.compute_covariance(
-        epochs, tmin=-0.2, tmax=0, method=['shrunk', 'empirical'])
-    data_cov = mne.compute_covariance(
-        epochs, tmin=0., tmax=0.2, method=['shrunk', 'empirical'])
+    for cond in config.contrasts[0]:
+        print(cond)
 
-    stc_data = apply_inverse_cov(data_cov, epochs.info, inverse_operator,
-                                 nave=len(epochs), method='dSPM', verbose=True)
-    stc_base = apply_inverse_cov(base_cov, epochs.info, inverse_operator,
-                                 nave=len(epochs), method='dSPM', verbose=True)
+        epochs_filter = epochs[cond]
+        # apres le faire pour les deux contrastes
+        base_cov = mne.compute_covariance(
+            epochs_filter, tmin=-0.2, tmax=0, method=['shrunk', 'empirical'])
+        data_cov = mne.compute_covariance(
+            epochs_filter, tmin=0., tmax=0.2, method=['shrunk', 'empirical'])
 
-    stc_data /= stc_base  # type: ignore
-    brain = stc_data.plot(
-        subjects_dir=config.get_fs_subjects_dir(),
-        clim=dict(kind='percent', lims=(50, 90, 98)))
-    brain.save_image(filename="test.png", mode='rgb')
+        stc_data = apply_inverse_cov(
+            data_cov, epochs_filter.info, inverse_operator,
+            nave=len(epochs_filter), method='dSPM', verbose=True)
+        stc_base = apply_inverse_cov(
+            base_cov, epochs_filter.info, inverse_operator,
+            nave=len(epochs_filter), method='dSPM', verbose=True)
+
+        stc_data /= stc_base  # type: ignore
+        brain = stc_data.plot(
+            subjects_dir=config.get_fs_subjects_dir(),
+            clim=dict(kind='percent', lims=(50, 90, 98)))
+        brain.save_image(filename=f"brain_{cond}.png", mode='rgb')
 
 
 def get_config(
