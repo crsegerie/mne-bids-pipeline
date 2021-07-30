@@ -15,7 +15,7 @@ import logging
 from typing import Optional
 
 import mne
-from mne.epochs import read_epochs
+from mne.epochs import Epochs, read_epochs
 from mne.minimum_norm.inverse import apply_inverse_cov
 from mne.utils import BunchConst
 from mne.parallel import parallel_func
@@ -66,28 +66,40 @@ def one_subject(subject, session, cfg):
     print("epochs loaded")
     epochs.decimate(5)
 
+    stc_cond = []
     for cond in config.contrasts[0]:
         print(cond)
+        l_freq, h_freq = 8, 12
 
         epochs_filter = epochs[cond]
-        # apres le faire pour les deux contrastes
-        base_cov = mne.compute_covariance(
-            epochs_filter, tmin=-0.2, tmax=0, method=['shrunk', 'empirical'])
-        data_cov = mne.compute_covariance(
-            epochs_filter, tmin=0., tmax=0.2, method=['shrunk', 'empirical'])
+        base_epochs = epochs_filter.copy().crop(tmin=-0.2, tmax=0)
+        base_epochs.filter(l_freq, h_freq)
+        data_epochs = epochs_filter.copy().crop(tmin=0, tmax=0.5)
+        data_epochs.filter(l_freq, h_freq)
+
+        base_cov = mne.compute_covariance(base_epochs)
+        data_cov = mne.compute_covariance(data_epochs)
 
         stc_data = apply_inverse_cov(
-            data_cov, epochs_filter.info, inverse_operator,
-            nave=len(epochs_filter), method='dSPM', verbose=True)
+            data_cov, epochs.info, inverse_operator,
+            nave=len(epochs), method='dSPM', verbose=True)
         stc_base = apply_inverse_cov(
-            base_cov, epochs_filter.info, inverse_operator,
-            nave=len(epochs_filter), method='dSPM', verbose=True)
+            base_cov, epochs.info, inverse_operator,
+            nave=len(epochs), method='dSPM', verbose=True)
 
         stc_data /= stc_base  # type: ignore
+        stc_cond.append(stc_data)
         brain = stc_data.plot(
             subjects_dir=config.get_fs_subjects_dir(),
             clim=dict(kind='percent', lims=(50, 90, 98)))
         brain.save_image(filename=f"brain_{cond}.png", mode='rgb')
+
+    # division betwen cond 1 and cond 0
+    stc_contrast = stc_cond[1] / stc_cond[0]
+    brain = stc_contrast.plot(
+        subjects_dir=config.get_fs_subjects_dir(),
+        clim=dict(kind='percent', lims=(50, 90, 98)))
+    brain.save_image(filename="brain_contrast.png", mode='rgb')
 
 
 def get_config(
