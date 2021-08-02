@@ -4,7 +4,7 @@
 - We substract the source space between the two conditions.
 
 
-Inspired from: 
+Inspired from:
 https://mne.tools/stable/auto_examples/inverse/mne_cov_power.html
 
 (mne_dev) csegerie@drago2:~/Desktop/mne-bids-pipeline$ nice -n 5 xvfb-run  python run.py --config=/storage/store2/data/time_in_wm_new/derivatives/decoding/cfg.py --steps=source/06-source_contrast
@@ -13,24 +13,32 @@ https://mne.tools/stable/auto_examples/inverse/mne_cov_power.html
 import itertools
 import logging
 from typing import Optional
+from mne.source_estimate import SourceEstimate
+import numpy as np
 
 import mne
-from mne.epochs import Epochs, read_epochs
+from mne.epochs import BaseEpochs, read_epochs
 from mne.minimum_norm.inverse import apply_inverse_cov
 from mne.utils import BunchConst
 from mne.parallel import parallel_func
-from mne.minimum_norm import (make_inverse_operator, apply_inverse,
-                              read_inverse_operator)
+from mne.minimum_norm import read_inverse_operator
 from mne_bids import BIDSPath
+from numpy.core.fromnumeric import mean
 
 import config
-from config import gen_log_kwargs, on_error, failsafe_run, sanitize_cond_name
 
 
 logger = logging.getLogger('mne-bids-pipeline')
 
 
+def fname(subject, session):
+    """Get name of source file."""
+    fname = f"res/brain_contrast_morphed_sub-{subject}-ses-{session}.stc"
+    return fname
+
+
 def one_subject(subject, session, cfg):
+    """Compute the contrast and morph it to the fsavg."""
     bids_path = BIDSPath(
         subject=subject,
         session=session,
@@ -67,11 +75,11 @@ def one_subject(subject, session, cfg):
     epochs.decimate(5)
 
     stc_cond = []
-    for cond in config.contrasts[0]:
+    for cond in config.contrasts[0]:  # type: ignore
         print(cond)
         l_freq, h_freq = 8, 12
 
-        epochs_filter = epochs[cond]
+        epochs_filter: BaseEpochs = epochs[cond]  # type: ignore
         base_epochs = epochs_filter.copy().crop(tmin=-0.2, tmax=0)
         base_epochs.filter(l_freq, h_freq)
         data_epochs = epochs_filter.copy().crop(tmin=0, tmax=0.5)
@@ -92,14 +100,45 @@ def one_subject(subject, session, cfg):
         brain = stc_data.plot(
             subjects_dir=config.get_fs_subjects_dir(),
             clim=dict(kind='percent', lims=(50, 90, 98)))
-        brain.save_image(filename=f"brain_{cond}.png", mode='rgb')
+        brain_img = f"res/brain_{cond}-sub-{subject}-ses-{session}.png"
+        brain.save_image(filename=brain_img, mode='rgb')
 
     # division betwen cond 1 and cond 0
+    # why not 0 / 1 ?
     stc_contrast = stc_cond[1] / stc_cond[0]
-    brain = stc_contrast.plot(
-        subjects_dir=config.get_fs_subjects_dir(),
-        clim=dict(kind='percent', lims=(50, 90, 98)))
-    brain.save_image(filename="brain_contrast.png", mode='rgb')
+
+    morph = mne.compute_source_morph(
+        stc_contrast,
+        subject_from=config.get_fs_subject(subject), subject_to='fsaverage',
+        subjects_dir=cfg.fs_subjects_dir)
+    stc_fsaverage: SourceEstimate = morph.apply(stc_contrast)  # type: ignore
+
+    brain = stc_fsaverage.plot(
+        subjects_dir=config.get_fs_subjects_dir(), hemi="split")
+    brain.save_image(
+        filename=f"res/brain_contrast_morphed_sub-{subject}-ses-{session}.png",
+        mode='rgb')
+
+    stc_fsaverage.save(fname=fname(subject, session))
+
+    return stc_fsaverage
+
+
+def group_analysis(subjects, sessions, cfg):
+    """Complete group analysis."""
+    tab_stc_fsaverage = [[None]*len(sessions)] * len(subjects)
+    for sub, subject in enumerate(subjects):
+        for ses, session in enumerate(sessions):
+            tab_stc_fsaverage[sub][ses] = mne.read_source_estimate(
+                fname=fname(subject, session), subject=subject)
+    stc_avg = np.array(tab_stc_fsaverage).mean()
+
+    subject = "fsaverage"
+    stc_avg.subject = subject
+    brain = stc_avg.plot(subjects_dir="/storage/store2/data/time_in_wm_new/derivatives/freesurfer/subjects", hemi="split")
+    brain.save_image(
+        filename=f"res/brain_contrast_morphed_sub-{subject}.png",
+        mode='rgb')
 
 
 def get_config(
@@ -116,15 +155,29 @@ def get_config(
         conditions=config.conditions,
         inverse_method=config.inverse_method,
         deriv_root=config.get_deriv_root(),
-        subjects_dir=config.get_fs_subjects_dir()
+        fs_subjects_dir=config.get_fs_subjects_dir()
     )
     return cfg
 
 
 def main():
-    subject = config.get_subjects()[0]
-    session = config.get_sessions()[0]
-    one_subject(subject=subject, session=session, cfg=get_config())
+    """Source space contrast."""
+    subjects = config.get_subjects()
+    print(subjects)
+    sessions = config.get_sessions()
+    cfg = get_config()
+
+    # one_subject(subject=subject, session=session, cfg=cfg)
+    print(config.get_n_jobs())
+
+    # parallel, run_func, _ = parallel_func(one_subject,
+    #                                       n_jobs=config.get_n_jobs())
+    # parallel(
+    #     run_func(cfg=cfg, subject=subject, session=session)
+    #     for subject, session in
+    #     itertools.product(subjects, sessions)
+    # )
+    group_analysis(subjects, sessions, cfg)
 
 
 if __name__ == '__main__':
