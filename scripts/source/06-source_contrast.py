@@ -23,7 +23,6 @@ from mne.utils import BunchConst
 from mne.parallel import parallel_func
 from mne.minimum_norm import read_inverse_operator
 from mne_bids import BIDSPath
-from numpy.core.fromnumeric import mean
 
 import config
 
@@ -97,15 +96,11 @@ def one_subject(subject, session, cfg):
 
         stc_data /= stc_base  # type: ignore
         stc_cond.append(stc_data)
-        brain = stc_data.plot(
-            subjects_dir=config.get_fs_subjects_dir(),
-            clim=dict(kind='percent', lims=(50, 90, 98)))
+        brain = stc_data.plot(subjects_dir=config.get_fs_subjects_dir())
         brain_img = f"res/brain_{cond}-sub-{subject}-ses-{session}.png"
         brain.save_image(filename=brain_img, mode='rgb')
 
-    # division betwen cond 1 and cond 0
-    # why not 0 / 1 ?
-    stc_contrast = stc_cond[1] / stc_cond[0]
+    stc_contrast = stc_cond[1] - stc_cond[0]
 
     morph = mne.compute_source_morph(
         stc_contrast,
@@ -135,7 +130,9 @@ def group_analysis(subjects, sessions, cfg):
 
     subject = "fsaverage"
     stc_avg.subject = subject
-    brain = stc_avg.plot(subjects_dir="/storage/store2/data/time_in_wm_new/derivatives/freesurfer/subjects", hemi="split")
+    brain = stc_avg.plot(
+        subjects_dir="/storage/store2/data/time_in_wm_new/derivatives/freesurfer/subjects",
+        hemi="split")
     brain.save_image(
         filename=f"res/brain_contrast_morphed_sub-{subject}.png",
         mode='rgb')
@@ -168,15 +165,14 @@ def main():
     cfg = get_config()
 
     # one_subject(subject=subject, session=session, cfg=cfg)
-    print(config.get_n_jobs())
 
-    # parallel, run_func, _ = parallel_func(one_subject,
-    #                                       n_jobs=config.get_n_jobs())
-    # parallel(
-    #     run_func(cfg=cfg, subject=subject, session=session)
-    #     for subject, session in
-    #     itertools.product(subjects, sessions)
-    # )
+    parallel, run_func, _ = parallel_func(one_subject,
+                                          n_jobs=config.get_n_jobs())
+    parallel(
+        run_func(cfg=cfg, subject=subject, session=session)
+        for subject, session in
+        itertools.product(subjects, sessions)
+    )
     group_analysis(subjects, sessions, cfg)
 
 
