@@ -95,12 +95,6 @@ def one_subject(subject, session, cfg):
         base_cov = mne.compute_covariance(base_epochs)
         data_cov = mne.compute_covariance(data_epochs)
 
-        # Topomap
-        # fig = data_cov.plot_topomap(
-        #     data_epochs.info, noise_cov=base_epochs,
-        #     title='Whitened data')
-        # fig.savefig(f"res/topo_{cond}-sub-{subject}-ses-{session}.png")
-
         stc_data = apply_inverse_cov(
             data_cov, epochs.info, inverse_operator,
             nave=len(epochs), method='dSPM', verbose=True)
