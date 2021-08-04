@@ -1,8 +1,10 @@
-"""In this file we analyse the contrast insource space.
+"""In this file, we analyze the contrast in the source space.
 
-- Apply inverse operator to covariances of different conditions.
-- We substract the source space between the two conditions.
+- We apply the inverse operator to the covariances for different conditions.
+- We subtract the source estimates between the two conditions.
+- We average across subjects this contrast.
 
+For now, the inverse operator uses the empty room covariance.
 
 Inspired from:
 https://mne.tools/stable/auto_examples/inverse/mne_cov_power.html
