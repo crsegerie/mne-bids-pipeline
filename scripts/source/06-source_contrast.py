@@ -76,16 +76,22 @@ def one_subject(subject, session, cfg):
     stc_cond = []
     for cond in config.contrasts[0]:  # type: ignore
         print(cond)
-        l_freq, h_freq = 8, 12
+        l_freq, h_freq = 8, 14
 
         epochs_filter: BaseEpochs = epochs[cond]  # type: ignore
         base_epochs = epochs_filter.copy().crop(tmin=-0.2, tmax=0)
         base_epochs.filter(l_freq, h_freq)
-        data_epochs = epochs_filter.copy().crop(tmin=0, tmax=0.5)
+        data_epochs = epochs_filter.copy().crop(tmin=0, tmax=1)
         data_epochs.filter(l_freq, h_freq)
 
         base_cov = mne.compute_covariance(base_epochs)
         data_cov = mne.compute_covariance(data_epochs)
+
+        # Topomap
+        # fig = data_cov.plot_topomap(
+        #     data_epochs.info, noise_cov=base_epochs,
+        #     title='Whitened data')
+        # fig.savefig(f"res/topo_{cond}-sub-{subject}-ses-{session}.png")
 
         stc_data = apply_inverse_cov(
             data_cov, epochs.info, inverse_operator,
@@ -94,6 +100,7 @@ def one_subject(subject, session, cfg):
             base_cov, epochs.info, inverse_operator,
             nave=len(epochs), method='dSPM', verbose=True)
 
+        # TODO Not clear: in the param there is no baseline.
         stc_data /= stc_base  # type: ignore
         stc_cond.append(stc_data)
         brain = stc_data.plot(subjects_dir=config.get_fs_subjects_dir())
@@ -109,7 +116,8 @@ def one_subject(subject, session, cfg):
     stc_fsaverage: SourceEstimate = morph.apply(stc_contrast)  # type: ignore
 
     brain = stc_fsaverage.plot(
-        subjects_dir=config.get_fs_subjects_dir(), hemi="split")
+        subjects_dir=config.get_fs_subjects_dir(),
+        hemi="split", size=(1600, 800))
     brain.save_image(
         filename=f"res/brain_contrast_morphed_sub-{subject}-ses-{session}.png",
         mode='rgb')
@@ -132,7 +140,7 @@ def group_analysis(subjects, sessions, cfg):
     stc_avg.subject = subject
     brain = stc_avg.plot(
         subjects_dir="/storage/store2/data/time_in_wm_new/derivatives/freesurfer/subjects",
-        hemi="split")
+        hemi="split", size=(1600, 800))
     brain.save_image(
         filename=f"res/brain_contrast_morphed_sub-{subject}.png",
         mode='rgb')
