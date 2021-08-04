@@ -36,6 +36,14 @@ def fname(subject, session):
     return fname
 
 
+def plot_source(stc, filename):
+    """Plot and save the source estimate."""
+    brain = stc.plot(
+        subjects_dir=config.get_fs_subjects_dir(),
+        hemi="split", size=(1600, 800))
+    brain.save_image(filename=filename, mode='rgb')
+
+
 def one_subject(subject, session, cfg):
     """Compute the contrast and morph it to the fsavg."""
     bids_path = BIDSPath(
@@ -102,20 +110,14 @@ def one_subject(subject, session, cfg):
 
         # TODO Not clear: in the param there is no baseline.
         stc_data /= stc_base  # type: ignore
-        stc_cond.append(stc_data)
-        brain = stc_data.plot(subjects_dir=config.get_fs_subjects_dir(),
-                              hemi="split", size=(1600, 800))
-        brain_img = f"res/brain_{cond}-sub-{subject}-ses-{session}.png"
-        brain.save_image(filename=brain_img, mode='rgb')
+        stc_cond.append(stc_data.copy())
+        filename = f"res/brain_{cond}-sub-{subject}-ses-{session}.png"
+        plot_source(stc_data, filename)
 
     stc_contrast = stc_cond[1] - stc_cond[0]
 
-    brain = stc_fsaverage.plot(
-        subjects_dir=config.get_fs_subjects_dir(),
-        hemi="split", size=(1600, 800))
-    brain.save_image(
-        filename=f"res/brain_contrast_sub-{subject}-ses-{session}.png",
-        mode='rgb')
+    filename = f"res/brain_contrast_sub-{subject}-ses-{session}.png"
+    plot_source(stc_contrast, filename)
 
     morph = mne.compute_source_morph(
         stc_contrast,
@@ -123,12 +125,8 @@ def one_subject(subject, session, cfg):
         subjects_dir=cfg.fs_subjects_dir)
     stc_fsaverage: SourceEstimate = morph.apply(stc_contrast)  # type: ignore
 
-    brain = stc_fsaverage.plot(
-        subjects_dir=config.get_fs_subjects_dir(),
-        hemi="split", size=(1600, 800))
-    brain.save_image(
-        filename=f"res/brain_contrast_morphed_sub-{subject}-ses-{session}.png",
-        mode='rgb')
+    filename = f"res/brain_contrast_morphed_sub-{subject}-ses-{session}.png"
+    plot_source(stc_fsaverage, filename)
 
     stc_fsaverage.save(fname=fname(subject, session))
 
