@@ -95,8 +95,8 @@ def one_subject(subject, session, cfg):
         # Here the inverse uses the empty room recording.
         stc_data = apply_inverse_cov(
             data_cov, epochs.info, inverse_operator,
-            nave=len(epochs), method='dSPM', verbose=True)
-
+            nave=len(epochs), method='dSPM', verbose=False)
+        print("subject", subject, np.max(stc_data.data))
         stc_cond.append(stc_data)
         filename = f"res/brain_{cond}-sub-{subject}-ses-{session}.png"
         plot_source(stc_data, filename)
