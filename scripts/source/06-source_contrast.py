@@ -110,6 +110,13 @@ def one_subject(subject, session, cfg):
 
     stc_contrast = stc_cond[1] - stc_cond[0]
 
+    brain = stc_fsaverage.plot(
+        subjects_dir=config.get_fs_subjects_dir(),
+        hemi="split", size=(1600, 800))
+    brain.save_image(
+        filename=f"res/brain_contrast_sub-{subject}-ses-{session}.png",
+        mode='rgb')
+
     morph = mne.compute_source_morph(
         stc_contrast,
         subject_from=config.get_fs_subject(subject), subject_to='fsaverage',
