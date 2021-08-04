@@ -101,7 +101,7 @@ def one_subject(subject, session, cfg):
         filename = f"res/brain_{cond}-sub-{subject}-ses-{session}.png"
         plot_source(stc_data, filename)
 
-    # Taking the difference of the log is equivalent to dividing direcly.
+    # Taking the difference of the log is equivalent to dividing directly.
     stc_contrast = stc_cond[1] / stc_cond[0]
 
     filename = f"res/brain_contrast_sub-{subject}-ses-{session}.png"
@@ -122,7 +122,7 @@ def one_subject(subject, session, cfg):
 
 
 def group_analysis(subjects, sessions, cfg):
-    """Complete group analysis."""
+    """Take the average of the source estimates."""
     tab_stc_fsaverage = [[None]*len(sessions)] * len(subjects)
     for sub, subject in enumerate(subjects):
         for ses, session in enumerate(sessions):
@@ -130,6 +130,7 @@ def group_analysis(subjects, sessions, cfg):
                 fname=fname(subject, session), subject=subject)
     stc_avg = np.array(tab_stc_fsaverage).mean()
 
+    # TODO: Not elegant
     subject = "fsaverage"
     stc_avg.subject = subject
     brain = stc_avg.plot(
@@ -166,18 +167,17 @@ def main():
     sessions = config.get_sessions()
     cfg = get_config()
 
-    # one_subject(subject=subjects[0], session=None, cfg=cfg)
+    # Usefull for debugging
+    # for sub, ses in itertools.product(subjects, sessions):
+    #     one_subject(sub, ses, cfg)
 
-    for sub, ses in itertools.product(subjects, sessions):
-        one_subject(sub, ses, cfg)
-
-    # parallel, run_func, _ = parallel_func(one_subject,
-    #                                       n_jobs=config.get_n_jobs())
-    # parallel(
-    #     run_func(cfg=cfg, subject=subject, session=session)
-    #     for subject, session in
-    #     itertools.product(subjects, sessions)
-    # )
+    parallel, run_func, _ = parallel_func(one_subject,
+                                          n_jobs=config.get_n_jobs())
+    parallel(
+        run_func(cfg=cfg, subject=subject, session=session)
+        for subject, session in
+        itertools.product(subjects, sessions)
+    )
     group_analysis(subjects, sessions, cfg)
 
 
