@@ -87,28 +87,22 @@ def one_subject(subject, session, cfg):
         l_freq, h_freq = 8, 14
 
         epochs_filter: BaseEpochs = epochs[cond]  # type: ignore
-        base_epochs = epochs_filter.copy().crop(tmin=-0.2, tmax=0)
-        base_epochs.filter(l_freq, h_freq)
         data_epochs = epochs_filter.copy().crop(tmin=0, tmax=1)
         data_epochs.filter(l_freq, h_freq)
 
-        base_cov = mne.compute_covariance(base_epochs)
         data_cov = mne.compute_covariance(data_epochs)
 
+        # Here the inverse uses the empty room recording.
         stc_data = apply_inverse_cov(
             data_cov, epochs.info, inverse_operator,
             nave=len(epochs), method='dSPM', verbose=True)
-        stc_base = apply_inverse_cov(
-            base_cov, epochs.info, inverse_operator,
-            nave=len(epochs), method='dSPM', verbose=True)
 
-        # TODO Not clear: in the param there is no baseline.
-        stc_data /= stc_base  # type: ignore
-        stc_cond.append(stc_data.copy())
+        stc_cond.append(stc_data)
         filename = f"res/brain_{cond}-sub-{subject}-ses-{session}.png"
         plot_source(stc_data, filename)
 
-    stc_contrast = stc_cond[1] - stc_cond[0]
+    # Taking the difference of the log is equivalent to dividing direcly.
+    stc_contrast = stc_cond[1] / stc_cond[0]
 
     filename = f"res/brain_contrast_sub-{subject}-ses-{session}.png"
     plot_source(stc_contrast, filename)
@@ -172,15 +166,18 @@ def main():
     sessions = config.get_sessions()
     cfg = get_config()
 
-    # one_subject(subject=subject, session=session, cfg=cfg)
+    # one_subject(subject=subjects[0], session=None, cfg=cfg)
 
-    parallel, run_func, _ = parallel_func(one_subject,
-                                          n_jobs=config.get_n_jobs())
-    parallel(
-        run_func(cfg=cfg, subject=subject, session=session)
-        for subject, session in
-        itertools.product(subjects, sessions)
-    )
+    for sub, ses in itertools.product(subjects, sessions):
+        one_subject(sub, ses, cfg)
+
+    # parallel, run_func, _ = parallel_func(one_subject,
+    #                                       n_jobs=config.get_n_jobs())
+    # parallel(
+    #     run_func(cfg=cfg, subject=subject, session=session)
+    #     for subject, session in
+    #     itertools.product(subjects, sessions)
+    # )
     group_analysis(subjects, sessions, cfg)
 
 
