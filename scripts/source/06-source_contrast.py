@@ -87,7 +87,7 @@ def one_subject(subject, session, cfg):
         l_freq, h_freq = 8, 14
 
         epochs_filter: BaseEpochs = epochs[cond]  # type: ignore
-        data_epochs = epochs_filter.copy().crop(tmin=0, tmax=1)
+        data_epochs = epochs_filter.copy().crop(tmin=0, tmax=3)
         data_epochs.filter(l_freq, h_freq)
 
         data_cov = mne.compute_covariance(data_epochs)
