@@ -103,7 +103,8 @@ def one_subject(subject, session, cfg):
         # TODO Not clear: in the param there is no baseline.
         stc_data /= stc_base  # type: ignore
         stc_cond.append(stc_data)
-        brain = stc_data.plot(subjects_dir=config.get_fs_subjects_dir())
+        brain = stc_data.plot(subjects_dir=config.get_fs_subjects_dir(),
+                              hemi="split", size=(1600, 800))
         brain_img = f"res/brain_{cond}-sub-{subject}-ses-{session}.png"
         brain.save_image(filename=brain_img, mode='rgb')
 
@@ -149,6 +150,8 @@ def group_analysis(subjects, sessions, cfg):
 def get_config(
     subject: Optional[str] = None,
     session: Optional[str] = None
+
+
 ) -> BunchConst:
     cfg = BunchConst(
         task=config.get_task(),
