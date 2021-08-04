@@ -155,8 +155,6 @@ def group_analysis(subjects, sessions, cfg):
 def get_config(
     subject: Optional[str] = None,
     session: Optional[str] = None
-
-
 ) -> BunchConst:
     cfg = BunchConst(
         task=config.get_task(),
