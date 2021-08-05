@@ -98,13 +98,14 @@ def one_subject(subject, session, cfg):
         stc_data = apply_inverse_cov(
             data_cov, epochs.info, inverse_operator,
             nave=len(epochs), method='dSPM', verbose=False)
-        print("subject", subject, np.max(stc_data.data))
+        print("subject", subject, np.max(stc_data.data), np.min(stc_data.data))
+        stc_data.data = np.log(stc_data.data)
         stc_cond.append(stc_data)
         filename = f"res/brain_{cond}-sub-{subject}-ses-{session}.png"
         plot_source(stc_data, filename)
 
-    # Taking the difference of the log is equivalent to dividing directly.
-    stc_contrast = stc_cond[1] / stc_cond[0]
+    # Taking the difference of the log
+    stc_contrast = stc_cond[1] - stc_cond[0]
 
     filename = f"res/brain_contrast_sub-{subject}-ses-{session}.png"
     plot_source(stc_contrast, filename)
