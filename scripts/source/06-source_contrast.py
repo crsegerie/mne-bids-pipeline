@@ -89,7 +89,7 @@ def one_subject(subject, session, cfg):
         l_freq, h_freq = 8, 14
 
         epochs_filter: BaseEpochs = epochs[cond]  # type: ignore
-        data_epochs = epochs_filter.copy().crop(tmin=0, tmax=3)
+        data_epochs = epochs_filter.copy().crop(tmin=0, tmax=1)
         data_epochs.filter(l_freq, h_freq)
 
         data_cov = mne.compute_covariance(data_epochs)
@@ -126,12 +126,14 @@ def one_subject(subject, session, cfg):
 
 def group_analysis(subjects, sessions, cfg):
     """Take the average of the source estimates."""
-    tab_stc_fsaverage = [[None]*len(sessions)] * len(subjects)
+    tab_stc = [[None for ses in sessions] for sub in subjects]
     for sub, subject in enumerate(subjects):
         for ses, session in enumerate(sessions):
-            tab_stc_fsaverage[sub][ses] = mne.read_source_estimate(
-                fname=fname(subject, session), subject=subject)
-    stc_avg = np.array(tab_stc_fsaverage).mean()
+            tab_stc[sub][ses] = mne.read_source_estimate(
+                fname=fname(subject, session), subject=subject).data
+
+    stc_avg = mne.read_source_estimate(fname=fname(subjects[0], sessions[0]))
+    stc_avg.data = np.mean(np.array(tab_stc), axis=(0, 1))
 
     # TODO: Not elegant
     subject = "fsaverage"
