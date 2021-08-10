@@ -132,15 +132,21 @@ def group_analysis(subjects, sessions, cfg):
             tab_stc[sub][ses] = mne.read_source_estimate(
                 fname=fname(subject, session), subject=subject).data
 
-    stc_avg = mne.read_source_estimate(fname=fname(subjects[0], sessions[0]))
+    from mne.source_estimate import SourceEstimate
+    stc_avg: SourceEstimate = mne.read_source_estimate(
+        fname=fname(subjects[0], sessions[0]))
     stc_avg.data = np.mean(np.array(tab_stc), axis=(0, 1))
+    print(type(stc_avg))
 
     # TODO: Not elegant
     subject = "fsaverage"
     stc_avg.subject = subject
     brain = stc_avg.plot(
         subjects_dir="/storage/store2/data/time_in_wm_new/derivatives/freesurfer/subjects",
-        hemi="split", size=(1600, 800))
+        hemi="split", size=(1600, 800), backend="pyvistaqt",
+        colormap="seismic",
+        clim=dict(kind="value", lims=[-0.103, 0, 0.103])
+    )
     brain.save_image(
         filename=f"res/brain_contrast_morphed_sub-{subject}.png",
         mode='rgb')
@@ -176,13 +182,13 @@ def main():
     # for sub, ses in itertools.product(subjects, sessions):
     #     one_subject(sub, ses, cfg)
 
-    parallel, run_func, _ = parallel_func(one_subject,
-                                          n_jobs=config.get_n_jobs())
-    parallel(
-        run_func(cfg=cfg, subject=subject, session=session)
-        for subject, session in
-        itertools.product(subjects, sessions)
-    )
+    # parallel, run_func, _ = parallel_func(one_subject,
+    #                                       n_jobs=config.get_n_jobs())
+    # parallel(
+    #     run_func(cfg=cfg, subject=subject, session=session)
+    #     for subject, session in
+    #     itertools.product(subjects, sessions)
+    # )
     group_analysis(subjects, sessions, cfg)
 
 
