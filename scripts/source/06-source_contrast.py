@@ -145,7 +145,8 @@ def group_analysis(subjects, sessions, cfg):
         subjects_dir="/storage/store2/data/time_in_wm_new/derivatives/freesurfer/subjects",
         hemi="split", size=(1600, 800), backend="pyvistaqt",
         colormap="seismic",
-        clim=dict(kind="value", lims=[-0.103, 0, 0.103])
+        # clim=dict(kind="value", lims=[-0.103, 0, 0.103])
+        clim=dict(kind="percent", pos_lims=[30, 80, 100])
     )
     brain.save_image(
         filename=f"res/brain_contrast_morphed_sub-{subject}.png",
