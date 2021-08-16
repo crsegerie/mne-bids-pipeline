@@ -9,7 +9,7 @@ For now, the inverse operator uses the empty room covariance.
 Inspired from:
 https://mne.tools/stable/auto_examples/inverse/mne_cov_power.html
 
-(mne_dev) csegerie@drago2:~/Desktop/mne-bids-pipeline$ nice -n 5 xvfb-run  python run.py --config=/storage/store2/data/time_in_wm_new/derivatives/decoding/cfg.py --steps=source/06-source_contrast
+(mne_dev) csegerie@drago2:~/Desktop/mne-bids-pipeline$ nice -n 5 xvfb-run python run.py --config=/storage/store2/data/time_in_wm_new/config_charbel.py --steps=source/06-source_contrast
 
 To then explore the results go to the source_analysis workspace
 which is in my local computer /home/charb/Desktop/parietal/other/source_analysis/source_visu.py
