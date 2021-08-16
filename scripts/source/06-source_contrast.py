@@ -10,6 +10,8 @@ Inspired from:
 https://mne.tools/stable/auto_examples/inverse/mne_cov_power.html
 
 (mne_dev) csegerie@drago2:~/Desktop/mne-bids-pipeline$ nice -n 5 xvfb-run  python run.py --config=/storage/store2/data/time_in_wm_new/derivatives/decoding/cfg.py --steps=source/06-source_contrast
+
+To then explore the results go to the source_analysis workspace.
 """
 
 import itertools
@@ -27,15 +29,17 @@ from mne.minimum_norm import read_inverse_operator
 from mne_bids import BIDSPath
 
 import config
-
+from os.path import join
 
 logger = logging.getLogger('mne-bids-pipeline')
 
+# You have to create the folder beforehand
+res_path = "/storage/store2/data/time_in_wm_new/derivatives/source_contrast/res_1s_alpha"
 
 def fname(subject, session):
     """Get name of source file."""
-    fname = f"res/brain_contrast_morphed_sub-{subject}-ses-{session}.stc"
-    return fname
+    filename = f"brain_contrast_morphed_sub-{subject}-ses-{session}.stc"
+    return join(res_path, filename)
 
 
 def plot_source(stc, filename):
@@ -86,7 +90,7 @@ def one_subject(subject, session, cfg):
     stc_cond = []
     for cond in config.contrasts[0]:  # type: ignore
         print(cond)
-        l_freq, h_freq = 8, 14
+        l_freq, h_freq = 15, 20
 
         epochs_filter: BaseEpochs = epochs[cond]  # type: ignore
         data_epochs = epochs_filter.copy().crop(tmin=0, tmax=1)
@@ -101,14 +105,14 @@ def one_subject(subject, session, cfg):
         print("subject", subject, np.max(stc_data.data), np.min(stc_data.data))
         stc_data.data = np.log(stc_data.data)
         stc_cond.append(stc_data)
-        filename = f"res/brain_{cond}-sub-{subject}-ses-{session}.png"
-        plot_source(stc_data, filename)
+        filename = f"brain_{cond}-sub-{subject}-ses-{session}.png"
+        plot_source(stc_data, join(res_path, filename))
 
     # Taking the difference of the log
     stc_contrast = stc_cond[1] - stc_cond[0]
 
-    filename = f"res/brain_contrast_sub-{subject}-ses-{session}.png"
-    plot_source(stc_contrast, filename)
+    filename = f"brain_contrast_sub-{subject}-ses-{session}.png"
+    plot_source(stc_contrast, join(res_path, filename))
 
     morph = mne.compute_source_morph(
         stc_contrast,
@@ -116,8 +120,8 @@ def one_subject(subject, session, cfg):
         subjects_dir=cfg.fs_subjects_dir)
     stc_fsaverage: SourceEstimate = morph.apply(stc_contrast)  # type: ignore
 
-    filename = f"res/brain_contrast_morphed_sub-{subject}-ses-{session}.png"
-    plot_source(stc_fsaverage, filename)
+    filename = f"brain_contrast_morphed_sub-{subject}-ses-{session}.png"
+    plot_source(stc_fsaverage, join(res_path, filename))
 
     stc_fsaverage.save(fname=fname(subject, session))
 
@@ -135,22 +139,14 @@ def group_analysis(subjects, sessions, cfg):
     from mne.source_estimate import SourceEstimate
     stc_avg: SourceEstimate = mne.read_source_estimate(
         fname=fname(subjects[0], sessions[0]))
-    
-    
+
+    # Average subject ###################################################
     # Save mean subject
     stc_avg.data = np.mean(np.array(tab_stc), axis=(0, 1))
     print(stc_avg.data.shape)
     print(type(stc_avg))
-    stc_avg.save("/storage/store2/data/time_in_wm_new/stc_avg.stc")
-    
-    # Hack in order to see each subject on different time frame on freeview
-    temp = np.mean(np.array(tab_stc), axis=(1, 3))
-    temp = np.transpose(temp)
-    print(np.array(tab_stc).shape)
-    print(temp.shape)
-    stc_avg.data = temp
-    stc_avg.time = np.linspace(0, 1, len(subjects))
-    stc_avg.save("/storage/store2/data/time_in_wm_new/stc_all.stc")
+
+    stc_avg.save(join(res_path, "stc_avg.stc"))
 
     # TODO: Not elegant
     subject = "fsaverage"
@@ -159,12 +155,23 @@ def group_analysis(subjects, sessions, cfg):
         subjects_dir="/storage/store2/data/time_in_wm_new/derivatives/freesurfer/subjects",
         hemi="split", size=(1600, 800), backend="pyvistaqt",
         colormap="seismic",
-        # clim=dict(kind="value", lims=[-0.103, 0, 0.103])
         clim=dict(kind="percent", pos_lims=[30, 80, 95])
     )
+    filename = f"brain_contrast_morphed_sub-{subject}.png"
     brain.save_image(
-        filename=f"res/brain_contrast_morphed_sub-{subject}.png",
+        filename=join(res_path, filename),
         mode='rgb')
+
+    # Every subject ###################################################
+    # Hack in order to see each subject on different time frame on freeview
+    temp = np.mean(np.array(tab_stc), axis=(1, 3))
+    temp = np.transpose(temp)
+    print(np.array(tab_stc).shape)
+    print(temp.shape)
+    stc_avg.data = temp
+    stc_avg.time = np.linspace(0, 1, len(subjects))
+    
+    stc_avg.save(join(res_path, "stc_all.stc"))
 
 
 def get_config(
