@@ -135,8 +135,22 @@ def group_analysis(subjects, sessions, cfg):
     from mne.source_estimate import SourceEstimate
     stc_avg: SourceEstimate = mne.read_source_estimate(
         fname=fname(subjects[0], sessions[0]))
+    
+    
+    # Save mean subject
     stc_avg.data = np.mean(np.array(tab_stc), axis=(0, 1))
+    print(stc_avg.data.shape)
     print(type(stc_avg))
+    stc_avg.save("/storage/store2/data/time_in_wm_new/stc_avg.stc")
+    
+    # Hack in order to see each subject on different time frame on freeview
+    temp = np.mean(np.array(tab_stc), axis=(1, 3))
+    temp = np.transpose(temp)
+    print(np.array(tab_stc).shape)
+    print(temp.shape)
+    stc_avg.data = temp
+    stc_avg.time = np.linspace(0, 1, len(subjects))
+    stc_avg.save("/storage/store2/data/time_in_wm_new/stc_all.stc")
 
     # TODO: Not elegant
     subject = "fsaverage"
@@ -146,7 +160,7 @@ def group_analysis(subjects, sessions, cfg):
         hemi="split", size=(1600, 800), backend="pyvistaqt",
         colormap="seismic",
         # clim=dict(kind="value", lims=[-0.103, 0, 0.103])
-        clim=dict(kind="percent", pos_lims=[30, 80, 100])
+        clim=dict(kind="percent", pos_lims=[30, 80, 95])
     )
     brain.save_image(
         filename=f"res/brain_contrast_morphed_sub-{subject}.png",
@@ -183,13 +197,13 @@ def main():
     # for sub, ses in itertools.product(subjects, sessions):
     #     one_subject(sub, ses, cfg)
 
-    # parallel, run_func, _ = parallel_func(one_subject,
-    #                                       n_jobs=config.get_n_jobs())
-    # parallel(
-    #     run_func(cfg=cfg, subject=subject, session=session)
-    #     for subject, session in
-    #     itertools.product(subjects, sessions)
-    # )
+    parallel, run_func, _ = parallel_func(one_subject,
+                                          n_jobs=config.get_n_jobs())
+    parallel(
+        run_func(cfg=cfg, subject=subject, session=session)
+        for subject, session in
+        itertools.product(subjects, sessions)
+    )
     group_analysis(subjects, sessions, cfg)
 
 
