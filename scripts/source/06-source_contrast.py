@@ -11,7 +11,8 @@ https://mne.tools/stable/auto_examples/inverse/mne_cov_power.html
 
 (mne_dev) csegerie@drago2:~/Desktop/mne-bids-pipeline$ nice -n 5 xvfb-run  python run.py --config=/storage/store2/data/time_in_wm_new/derivatives/decoding/cfg.py --steps=source/06-source_contrast
 
-To then explore the results go to the source_analysis workspace.
+To then explore the results go to the source_analysis workspace
+which is in my local computer /home/charb/Desktop/parietal/other/source_analysis/source_visu.py
 """
 
 import itertools
@@ -33,8 +34,8 @@ from os.path import join
 
 logger = logging.getLogger('mne-bids-pipeline')
 
-# You have to create the folder beforehand
-res_path = "/storage/store2/data/time_in_wm_new/derivatives/source_contrast/res_1s_alpha"
+# You have to  create the result folder beforehand
+res_path = "/storage/store2/data/time_in_wm_new/derivatives/source_contrast/res_3s_beta"
 
 def fname(subject, session):
     """Get name of source file."""
@@ -93,7 +94,7 @@ def one_subject(subject, session, cfg):
         l_freq, h_freq = 15, 20
 
         epochs_filter: BaseEpochs = epochs[cond]  # type: ignore
-        data_epochs = epochs_filter.copy().crop(tmin=0, tmax=1)
+        data_epochs = epochs_filter.copy().crop(tmin=0, tmax=3)
         data_epochs.filter(l_freq, h_freq)
 
         data_cov = mne.compute_covariance(data_epochs)
@@ -155,6 +156,7 @@ def group_analysis(subjects, sessions, cfg):
         subjects_dir="/storage/store2/data/time_in_wm_new/derivatives/freesurfer/subjects",
         hemi="split", size=(1600, 800), backend="pyvistaqt",
         colormap="seismic",
+        # No need to calibrate the colorbar here, you can just use the visualization script
         clim=dict(kind="percent", pos_lims=[30, 80, 95])
     )
     filename = f"brain_contrast_morphed_sub-{subject}.png"
